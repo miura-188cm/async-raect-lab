@@ -10,7 +10,6 @@ function App() {
     <>
       <div>
         <button onClick={() => setPage("SUSPENSE")}>SUSPENSE</button>
-
       </div>
       {page && <HomePage />}
     </>
