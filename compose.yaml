@@ -1,0 +1,13 @@
+services:
+  app:
+    image: oven/bun:latest
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - "5173:5173"
+    command: sh -c  "bun install && bun run dev -- --host"
+    tty: true
+
+volumes:
+  node_modules:
