@@ -194,3 +194,9 @@ function ActionButton({ action, children }) {
 | 6 | アニメーション | `ViewTransition` | Step 5 |
 
 各 Step で `/src` に段階的に実装し、rick-async-react と見比べながら進める。
+
+rick-async-react が今後reactが目指す async react だと考えています
+
+home.tsx の構成やどのように非同期になっているかを研究してください．
+
+まずはどのように研究するのかプランを作成してください
