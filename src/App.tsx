@@ -2,16 +2,15 @@ import { useState } from "react";
 import "./App.css";
 import { HomePage } from "./page/home";
 
-type Page = "HOME";
+type Page = "SUSPENSE";
 function App() {
-  const [page, setPage] = useState<Page>("HOME");
+  const [page, setPage] = useState<Page>("SUSPENSE");
 
   return (
     <>
       <div>
-        <button onClick={() => setPage("HOME")}>HOME</button>
-        <button onClick={() => setPage("HOME")}>HOME</button>
-        <button onClick={() => setPage("HOME")}>HOME</button>
+        <button onClick={() => setPage("SUSPENSE")}>SUSPENSE</button>
+
       </div>
       {page && <HomePage />}
     </>
