@@ -1,3 +1,4 @@
+/** ログインフォームの見た目だけを担当するコンポーネント。認証ロジックや非同期処理は親側。 */
 import {
   CardContent,
   CardDescription,

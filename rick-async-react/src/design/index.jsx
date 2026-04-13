@@ -1,3 +1,4 @@
+/** design/ 配下の公開バレル。async react 学習用 UI 部品をここから一括エクスポートする。 */
 import SearchInput from "./SearchInput";
 import TabList from "./TabList";
 import Card from "./Card";

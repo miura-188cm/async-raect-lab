@@ -1,3 +1,4 @@
+/** リスト 0 件時の空表示コンポーネント。純粋な見た目だけの部品。 */
 import { ViewTransition } from "react";
 import {
   Empty,

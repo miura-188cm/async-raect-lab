@@ -1,3 +1,4 @@
+/** レッスン一覧の行・コンテナ用コンポーネント。レイアウト専用で非同期ロジックは持たない。 */
 import { ItemGroup } from "@/components/ui/item";
 import {
   Item,

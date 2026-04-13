@@ -1,3 +1,9 @@
+/**
+ * ボタン上に pending 中のシマー（光が流れるアニメーション）を重ねる装飾パーツ。
+ * isPending のときだけアニメーションクラスが付き、index.css 側の animation-delay と
+ * transition-delay により「短時間の処理ではそもそもアニメーションが始まらない」
+ * チラつき防止設計になっている。
+ */
 import { cn } from "@/lib/utils";
 
 export default function ButtonShimmer({ isPending, long }) {

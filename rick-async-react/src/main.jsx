@@ -1,3 +1,12 @@
+/**
+ * このファイルはアプリのエントリポイント。async React 的には
+ * 「ページ単位の ViewTransition をどこで張るか」「Router / Layout / Page をどう組むか」
+ * を学ぶための最小構成になっている。
+ * - Router がグローバル state (URL / search / refresh) を提供する
+ * - AppRouter が URL を見て描画するページを切り替える
+ * - ページ単位で ViewTransition を張り、ルート遷移そのものをアニメ化する
+ * - Layout は純粋な見た目の器 (Card など) で、データや遷移ロジックは持たない
+ */
 import React, { ViewTransition } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -10,6 +19,8 @@ import { Router, useRouter } from "@/router/index.jsx";
 import { Card, CardContent } from "@/components/ui/card";
 import { Github } from "lucide-react";
 function Layout({ children }) {
+  // 見た目だけを整える純粋な UI コンポーネント。
+  // ルーティングやデータの関心は持たせず、どのページからも使えるようにしている。
   return (
     <>
       <a
@@ -37,6 +48,13 @@ function Layout({ children }) {
 function AppRouter() {
   const { url } = useRouter();
 
+  /**
+   * URL に応じてページを切り替えるだけの最小ルーター。
+   * 各ページを ViewTransition で包み、key に url を渡しているのがポイント。
+   * key が変わる = React から見て別要素 = ページ間のクロスフェードが自動で走る。
+   * default="none" により、ページ内の普通の state 更新ではアニメを発生させず、
+   * enter/exit="auto" で「入退場時だけ」トランジションさせている。
+   */
   return (
     <>
       {url === "/" && (
@@ -62,6 +80,12 @@ function AppRouter() {
 }
 
 export default function App() {
+  /**
+   * Router がアプリ全体に URL / navigate / refresh / search を提供する。
+   * async React のポイントは、この Router が内部で setState を Transition に包んでいること。
+   * これにより navigate / setParams / refresh が Suspense の fallback を再表示せず、
+   * 既存の UI を保持したまま新しい内容をバックグラウンドで準備する挙動になる。
+   */
   return (
     <Router>
       <AppRouter />

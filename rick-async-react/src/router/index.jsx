@@ -1,3 +1,12 @@
+/**
+ * このファイルは async react における「トランジションと連動するルーター」を学ぶための教材。
+ * 通常の SPA ルーターは「URL を変える → state を変える → 再レンダー」だが、
+ * async react ではデータ取得が走る間 UI を古いまま見せたい（= transition で描く）。
+ * そのため「state を transition で更新 → DOM 更新完了後に URL を確定させる」という逆順になる。
+ * Navigation API が使えるブラウザでは event.intercept() でこれをブラウザに伝え、
+ * 使えないブラウザでは history.pushState を useLayoutEffect 内で呼ぶことで近似する。
+ */
+
 import {
   useState,
   createContext,
@@ -9,19 +18,19 @@ import {
 } from "react";
 import { revalidate } from "../data/index.js";
 
-// There are two example routers here.
-// One uses the Navigation API and the other uses window.history,
-// because not all browsers support the Navigation API yet.
+// ここには 2 種類のルーター実装がある。
+// ひとつは Navigation API を使うもの、もうひとつは window.history を使うもの。
+// Navigation API はまだ全ブラウザで使えるわけではないため、フォールバックを用意している。
 
-// In both cases the router works by updating state in a transition,
-// then calling the pendingNav callback in a useLayoutEffect after the DOM has updated.
-// This lets React update the DOM in a transition before committing the navigation.
+// どちらのルーターも基本戦略は同じ:
+//   1. ナビゲーションを transition 内で state 更新として扱う
+//   2. DOM の更新が完了した後、useLayoutEffect で pendingNav コールバックを呼ぶ
+// これにより「React がトランジションで DOM を更新し終えてからナビゲーションを確定する」
+// という順序が保証される。
 
-// For the Navigation API router we intercept navigations and
-// call event.intercept to tell the browser we will handle it.
-// We call the pendingNav callback in the intercept handler
-// to tell the browser to commit the navigation after React has updated the DOM.
-// This allows the browser to wait to reset focus/scroll until after the transition is done.
+// Navigation API 版では navigate イベントをインターセプトし、event.intercept() に渡した
+// handler の中で state 更新を開始する。handler が返す Promise は pendingNav を resolve すると
+// 完了するので、ブラウザは「React の描画が終わるまで」フォーカスリセットやスクロール復元を待ってくれる。
 function NavigationRouter({ children }) {
   const [routerState, setRouterState] = useState(() => ({
     pendingNav: () => {},
@@ -47,6 +56,11 @@ function NavigationRouter({ children }) {
     );
   }
 
+  // router.refresh()。revalidate() で Promise キャッシュを捨て、
+  // state を「新しいオブジェクト参照」に差し替えることで再レンダーを強制する。
+  // transition 内で行うのでフォールバックが出ることはなく、
+  // 次のレンダーで getLessons が新しい Promise を作り直し、データが再取得される。
+  // つまり「キャッシュ無効化 + 再レンダー起動」= Next.js の router.refresh() 相当。
   function refresh() {
     revalidate();
     startTransition(() => {
@@ -68,20 +82,29 @@ function NavigationRouter({ children }) {
       const currURL = new URL(location.href);
       const newURL = new URL(event.destination.url);
 
-      // If only the search params or hash are changing we want to
-      // avoid the default focus reset that would happen.
-      // The app can always reset focus manually if needed.
+      // パスが同じでクエリパラメータやハッシュだけが変わる場合、
+      // ブラウザ既定のフォーカスリセットは邪魔になりがち（検索 UI から外されるなど）。
+      // focusReset: "manual" を指定してアプリ側に委ねる。
       const onlyParamsOrHash =
         newURL.pathname === currURL.pathname &&
         (newURL.search !== currURL.search || newURL.hash !== currURL.hash);
 
+      // event.intercept() はブラウザに「このナビゲーションは SPA 側で処理する」と伝える API。
+      // handler が返す Promise が resolve するまで、ブラウザはナビゲーションを「進行中」とみなす。
+      // ここで startTransition 内で state を更新することで、
+      //   - React: 古い UI を表示したままバックグラウンドで新 UI を準備
+      //   - ブラウザ: handler の Promise が完了するまで URL 確定やフォーカス移動を待機
+      // という二者が噛み合い、トランジションとブラウザナビゲーションが同期する。
       event.intercept({
         handler() {
           let promise;
           startTransition(() => {
+            // transition type を付けておくと、受け側の useTransition 等で
+            // 「navigation-push / navigation-traverse」などの種別を判別できる。
             addTransitionType("navigation-" + navigationType);
             if (navigationType === "traverse") {
-              // For traverse types it's useful to distinguish going back or forward.
+              // 履歴エントリの index 比較で「戻る」か「進む」かを判定。
+              // アニメーション方向を変えたいときなどに利用できる情報。
               const nextIndex = event.destination.index;
               if (nextIndex > previousIndex) {
                 addTransitionType("navigation-forward");
@@ -89,6 +112,9 @@ function NavigationRouter({ children }) {
                 addTransitionType("navigation-back");
               }
             }
+            // Promise の resolve 関数そのものを pendingNav として state に保存する。
+            // この resolve が呼ばれるまで event.intercept は「完了待ち」状態が続き、
+            // 実際の呼び出しは下の useLayoutEffect（＝コミット直後）で行う。
             promise = new Promise((resolve) => {
               setRouterState({
                 url: newURL.pathname,
@@ -111,6 +137,9 @@ function NavigationRouter({ children }) {
 
   const pendingNav = routerState.pendingNav;
 
+  // commit 直後（DOM 反映後、paint 前）に pendingNav を呼ぶのがポイント。
+  // useEffect だと paint 後になってしまい、ブラウザ側のフォーカスリセットが
+  // 新 UI を「見る」前に走ってしまう可能性がある。useLayoutEffect で同期的に知らせる。
   useLayoutEffect(() => {
     pendingNav();
   }, [pendingNav]);
@@ -132,10 +161,10 @@ function NavigationRouter({ children }) {
   );
 }
 
-// For the History API, we just call history.pushState in the pendingNav callback.
-// This means the URL in the address bar only updates after React has updated the DOM.
-// This isn't ideal, but it's the best we can do without the Navigation API.
-// We also listen to 'popstate' events to handle back/forward navigations.
+// History API 版では pendingNav の中で history.pushState を呼ぶ。
+// つまり「React が DOM を更新し終わってから初めて URL バーが書き換わる」順序。
+// 理想的ではない（URL 変更が遅延する）が、Navigation API が無いブラウザではこれが限界。
+// back/forward には popstate イベントで対応する。
 function HistoryRouter({ children }) {
   const [routerState, setRouterState] = useState({
     pendingNav: () => {},
@@ -149,6 +178,9 @@ function HistoryRouter({ children }) {
         return {
           url,
           search: {},
+          // pushState は pendingNav として遅延実行する。
+          // state 更新（＝新ルートのレンダー）が完了して DOM に反映された後で
+          // URL を確定することで、「URL だけ進んで中身は古い」状態を避ける。
           pendingNav() {
             window.history.pushState({}, "", url);
           },
@@ -182,6 +214,7 @@ function HistoryRouter({ children }) {
     });
   }
 
+  // Navigation 版と同じく、キャッシュを捨てて再レンダーを促す。
   function refresh() {
     revalidate();
     startTransition(() => {
@@ -195,16 +228,18 @@ function HistoryRouter({ children }) {
 
   useEffect(() => {
     function handlePopState() {
-      // We still popstate in a transition, but React will flush this synchronously.
-      // This ensures that browser 'back' navigations are instant, but if the data
-      // layer has a cache miss, it will force fallbacks to be shown. This is a good
-      // example why just clearing the cache when a component unmounts is a bad idea.
+      // popstate も startTransition で囲むが、React はこれを同期的に flush する。
+      // これは仕様として妥当で、理由は:
+      //   - ブラウザは既に URL を戻してしまっているため、UI と URL の不一致時間を最小化したい
+      //   - 結果、キャッシュミス時は Suspense フォールバックが出る
+      // これは「コンポーネントのアンマウント時にキャッシュをクリアする」設計が
+      // なぜ悪手かを端的に示すケースでもある（戻るたびに空キャッシュでフォールバック地獄になる）。
       startTransition(() => {
         setRouterState({
           url: document.location.pathname,
           search: parseSearchParams(document.location.search),
           pendingNav() {
-            // Noop. URL has already updated.
+            // 何もしない。URL はブラウザによって既に更新済み。
           },
         });
       });
@@ -236,6 +271,8 @@ function HistoryRouter({ children }) {
   );
 }
 
+// ブラウザが Navigation API をサポートしていれば優先的に使う。
+// （window.navigation オブジェクトの有無で判定）
 let SelectedRouter = HistoryRouter;
 if (typeof navigation === "object") {
   SelectedRouter = NavigationRouter;
@@ -243,6 +280,12 @@ if (typeof navigation === "object") {
 
 export const Router = SelectedRouter;
 
+// Router Context の設計意図:
+// - url/search: 現在位置の読み取り用
+// - navigate/setParams: URL を変える側の操作
+// - refresh: データ層のキャッシュを無効化して再取得を促す操作
+// この 3 系統を 1 つの Context に束ねることで、ルーティングとデータ取得が
+// 一体となった API として提供される（Next.js の useRouter に近い設計）。
 const RouterContext = createContext({
   url: "/",
   search: {},
@@ -252,8 +295,10 @@ const RouterContext = createContext({
 });
 
 // eslint-disable-next-line react-refresh/only-export-components
-// TODO: fix this - not sure why I can't export a hook with this rule.
+// TODO: このルールで hook を export できない理由を調べる。
 export function useRouter() {
+  // useContext ではなく use を使っているのは、async react スタイルへの統一のため。
+  // use は Context にも Promise にも使える統一 API。
   return use(RouterContext);
 }
 
