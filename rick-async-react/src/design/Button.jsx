@@ -19,7 +19,7 @@ export default function Button({ children, action }) {
     // transition の中で await することで、action が解決するまで isPending が true になる。
     // この「await の存続期間 = pending の存続期間」が React 19 の async transition の肝。
     transition(async () => {
-      await action();
+      await action(); // これって意味あるの？ transition(action) でよくね?
     });
   }
   return (
