@@ -15,6 +15,7 @@ export default function CompleteButton({ complete, action }) {
   // useOptimistic は「確定値 complete」をベースに、transition 中だけ仮の値を上書きできるフック。
   // transition が終わると setOptimisticComplete で書き込んだ値は捨てられ、complete に自動で戻る。
   // だから「ロールバック処理」を自前で書く必要がなく、失敗時も勝手に元の表示へ復帰する。
+  // 注: 保持しているのは「計算結果」ではなく「reducer への入力」で、毎レンダー passthrough と再合成される。
   const [optimisticComplete, setOptimisticComplete] = useOptimistic(complete);
 
   function clickAction() {
