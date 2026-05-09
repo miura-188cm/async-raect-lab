@@ -163,6 +163,7 @@ export default function Home() {
            fallback を再表示せずに optimistic / pending で代替する。
            これが async React における「初回は fallback / 更新時はそのまま」のパターン。
         */}
+        {/* Suspense は子の "suspend" を捕捉する境界。Promise を直接見ているのではなく、render 中に throw された Promise (= use / lazy / 対応 framework) に反応する。 */}
         <Suspense fallback={<Design.FallbackList />}>
           <LessonList
             tab={tab}
